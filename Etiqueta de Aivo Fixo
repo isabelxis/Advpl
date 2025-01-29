@@ -1,0 +1,143 @@
+#Include 'Protheus.ch'
+#Include "RWMAKE.CH"   
+#INCLUDE "RPTDEF.CH"
+#INCLUDE "FWPrintSetup.ch"
+#Include 'TopConn.ch'
+#INCLUDE "TBICONN.CH"
+#INCLUDE "COLORS.CH"
+
+/*/{Protheus.doc} FCETIQ25
+//TODO Descrição 
+@author ixsilva
+@since 22/01/2025
+@version 1.0
+@description Etiqueta de ativo
+@type function
+/*/
+ 
+User Function FCETIQ25()
+	Private cPerg := 'REST002'
+	CriaSx1(cPerg)
+	IF Pergunte(cPerg,.T.)
+		Processa({ || xPrintRel(),OemToAnsi('Gerando o relatório.')}, OemToAnsi('Aguarde...'))
+    ENDIF
+Return  
+ 
+Static Function xPrintRel()  
+ 
+	Local cNome    := ''
+	Local nPosicao := 17
+    Local nLinEtq  := 4
+    Local nColEtq  := 2.1
+    Local nLargEtq := 0.02
+    Local nAltuEtq := 0.5	
+ 
+	Private oPrint
+	Private cAlias 	    := getNextAlias() //cria um alias temporário
+	Private oFont06		:= TFont():New('Arial',,06,,.F.,,,,.F.,.F.)
+	Private oFont06n	:= TFont():New('Arial',,06,,.T.,,,,.F.,.F.)
+	Private oFont08		:= TFont():New('Arial',,08,,.F.,,,,.F.,.F.)
+	Private oFont08n	:= TFont():New('Arial',,08,,.T.,,,,.F.,.F.)
+	Private oFont10		:= TFont():New('Arial',,10,,.F.,,,,.F.,.F.)
+	Private oFont10n	:= TFont():New('Arial',,10,,.T.,,,,.F.,.F.)
+	Private oFont12		:= TFont():New('Arial',,12,,.F.,,,,.F.,.F.)
+	Private oFont12n	:= TFont():New('Arial',,12,,.T.,,,,.F.,.F.)
+	Private oFont14		:= TFont():New('Arial',,14,,.F.,,,,.F.,.F.)
+	Private oFont16		:= TFont():New('Arial',,16,,.F.,,,,.F.,.F.)
+	Private oFont18 	:= TFont():New('Arial',,18,,.T.,,,,.F.,.F.)
+	Private oFont26		:= TFont():New('Arial',,26,,.F.,,,,.F.,.F.)
+	Private oFont26n	:= TFont():New('Arial',,26,,.T.,,,,.F.,.F.)
+	Private oFont28	:= TFont():New('Arial',,28,,.T.,,,,.F.,.F.)
+	Private nLin		:= 0 
+ 	Private lAdjustToLegacy := .F. 
+	Private lDisableSetup   := .T.   
+    Private oHTML
+
+	BeginSql Alias cAlias
+    	SELECT
+			N1_LOCAL,
+			N1_CBASE,
+            N1_DESCRIC,
+            NL_DESCRIC
+		FROM
+			%table:SN1% SN1
+            INNER JOIN %TABLE:SNL% SNL ON LEFT(NL_FILIAL,4) = LEFT(N1_FILIAL,4)  AND  N1_LOCAL=NL_CODIGO AND SNL.D_E_L_E_T_=' '
+		WHERE
+				N1_FILIAL = %xFilial:SN1%
+				AND N1_CBASE BETWEEN %exp:mv_par01% AND %exp:mv_par02%
+				AND N1_LOCAL BETWEEN %exp:mv_par03% AND %exp:mv_par04%
+				AND SN1.D_E_L_E_T_ = ' '
+		ORDER BY
+			N1_LOCAL, N1_CBASE
+	EndSql	   
+ 
+	(cAlias)->(dbGoTop())
+	If Eof()
+		MsgBox("Nao existe etiquetas para imprimir, verifique a filial","Atenção", "ALERT" )
+		Return
+	EndIf
+ 	
+
+	oPrint:= FWMSPrinter():New(OemToAnsi('Etiqueta de ativo'),, lAdjustToLegacy, , lDisableSetup, , , , , , .F., )
+	oPrint:SetPortrait()  
+	oPrint:SetMargin(0,20,0,0) // nEsquerda, nSuperior, nDireita, nInferior
+ 
+	 cFilialC = Substr (xFilial("SN1"),1,2)
+		
+		
+		Do Case
+			Case cFilialC == '01'
+				cNome := '\logo\1.png'
+				nPosicao := 17
+			Case cFilialC == '02'
+				cNome := "\logo\2.png"
+				nPosicao := 17
+			Case cFilialC == '03'
+				cNome := '\logo\3.png'
+				nPosicao := 17
+			Case cFilialC == '04'
+				cNome := '\logo\4.png'
+				nPosicao := 17
+			Case cFilialC == '05'
+				cNome := '\logo\5.png'
+				nPosicao := 17
+			Case cFilialC == '06'
+				cNome := '\logo\6.png'
+				nPosicao := 17
+			Case cFilialC == '07'
+				cNome := '\logo\7.png'
+				nPosicao := 17
+		ENDCASE
+ 
+    DO While !(cAlias)->(Eof())
+	
+		oPrint:StartPage() 
+			
+		nLin  := 0017
+		oPrint:SayBitmap(nLin ,0012, cNome, 30 ,10)
+		oPrint:Say(nLin,0050,OemToAnsi(alltrim((cAlias)->N1_CBASE)),oFont12n,,,,0)
+        oPrint:Say(nLin+10,0050,OemToAnsi("LOCAL: "+ alltrim((cAlias)->N1_LOCAL)),oFont08,,,,0)
+        oPrint:Say(nLin+18,0050,OemToAnsi(Substr(alltrim((cAlias)->NL_DESCRIC),1,20)),oFont06,,,,0)
+
+		oPrint:Say(nLin+28,0012,OemToAnsi(Substr( alltrim((cAlias)->N1_DESCRIC), 1, 30)),oFont06,,,,0)
+
+		oPrint:FWMSBAR('CODE128',nLinEtq,nColEtq,Alltrim((cAlias)->N1_CBASE),oPrint,.F.,,.T.,nLargEtq,nAltuEtq,,,,.F.)
+
+		oPrint:EndPage()
+
+		(cAlias)->(dbSkip())
+	Enddo 
+	              
+	(cAlias)->(dbCloseArea())
+	
+	oPrint:Setup()
+	oPrint:Preview()
+
+Return          
+ 
+Static Function CriaSx1(cPerg)
+	PutSx1(cPerg, '01', 'Do código?'          , '', '', 'mv_ch1', 'C', 15, 0, 0, 'G', '', 'SN1', '', '', 'mv_par01')
+	PutSx1(cPerg, '02', 'Até Código?'         , '', '', 'mv_ch2', 'C', 15, 0, 0, 'G', '', 'SN1', '', '', 'mv_par02') 
+	PutSx1(cPerg, '03', 'Do Local?'         , '', '', 'mv_ch3', 'C', TamSX3("NL_CODIGO")[1]	, 0, 0, 'G', '', 'SNL', '', '', 'mv_par03')
+	PutSx1(cPerg, '04', 'Até Local?'         , '', '', 'mv_ch4', 'C', TamSX3("NL_CODIGO")[1]	, 0, 0, 'G', '', 'SNL', '', '', 'mv_par04')
+return

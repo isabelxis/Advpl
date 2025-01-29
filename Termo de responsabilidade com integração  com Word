@@ -13,6 +13,8 @@
 @version 1.0
 @description Termo de responsabilidade individual
 @type function
+arquivo word - https://github.com/isabelxis/Advpl/blob/eaa3b98d701aa99e4ddf25916bd85f896588ff79/TERMO%20DE%20RESPONSABILIDAD1.dot
+macro - https://github.com/isabelxis/Advpl/blob/eaa3b98d701aa99e4ddf25916bd85f896588ff79/TERMO%20DE%20RESPONSABILIDAD1.dot
 /*/
 
 user function SIATFR06()

@@ -1,0 +1,452 @@
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "MSOLE.CH"
+#INCLUDE "TOTVS.CH"
+#Include "TopConn.CH"
+#INCLUDE "RWMAKE.CH"
+#INCLUDE "COLORS.CH"
+#INCLUDE "FONT.CH"
+
+/*/{Protheus.doc} SIATFR06
+//TODO Descrição auto-gerada.
+@author Isabel Xavier
+@since 10/08/2020
+@version 1.0
+@description Termo de responsabilidade individual
+@type function
+/*/
+
+user function SIATFR06()
+	Local cCadastro	:= OemtoAnsi("Termo de responsabilidade Individual")
+	Local aMensagem	:={}
+	Local aBotoes   :={}
+	Local nOpca	:= 0
+
+    Private cPerg   :=Padr("XSIATFR06",10)
+    /*
+	+------------------------------------------------------------------
+	| Variaveis utilizadas para parametros
+	+------------------------------------------------------------------
+	mv_par01 Local de
+    mv_par02 Local ate 
+    mv_par03 Responsavel de 
+    mv_par04 Responsavel ate 
+    mv_par05 Codigo Bem de
+    mv_par06 Item de
+    mv_par07 Codigo Bem ate
+    mv_par08 Item ate       
+    mv_par09 Representante  
+    mv_par10 Arquivo Modelo .dot
+    mv_par11 Pasta Destino  
+	+-------------------------------------------------------------------
+	*/
+	//Pergunte(cPerg,.F.)
+	AjustaSX1()
+    If !Pergunte(cPerg,.T.)
+		Return
+	EndIf
+
+	AADD(aMensagem,OemToAnsi("Este programa ira realizar a impressão dos Termos ") )
+	AADD(aMensagem,OemToAnsi("de responsabilidade Individual do Ativo Fixo.") )
+
+	AADD(aBotoes, { 5,.T.,{||  Pergunte(cPerg,.T. )}})
+	AADD(aBotoes, { 1,.T.,{|o| nOpca := 1,FechaBatch()}})
+	AADD(aBotoes, { 2,.T.,{|o| FechaBatch() }} )
+
+	FormBatch( cCadastro, aMensagem, aBotoes )
+    
+	If nOpca == 1		    
+        Processa({|| Imprimir() },"Aguarde...")
+	EndIf
+
+
+Return
+
+
+Static Function Imprimir()
+    Local _cQuery	:= ""
+    Local _aCod     := {}
+    Local _aDesc    := {}
+    Local _aMarca   := {}
+    Local _aLocal   := {}
+    Local _cCodResp	:= ""
+    Local _cEntidade := "" 
+    Local _cCNPJ     := "" 
+    Local _cEndEntid := ""
+    Local nTotItens,I,_nI := 0
+    Local _cColab    := "" 
+    Local _cCEstCv   := "" 
+    Local _cCCPF   := "" 
+    Local _cCNacio := ""
+    Local _cCProf  := ""
+    Local _cCRG    := ""    
+    Local _cCMatr  := ""
+    Local _cCEnd   := ""
+    Local _cRepr   := ""
+    Local _cREstCv := ""
+    Local _cRCPF   := ""
+    Local _cRNacio := ""
+    Local _cRProf  := ""
+    Local _cRRG    := ""
+    Local _cRMatr  := ""
+    Local _cREnd   := ""    
+    Local aDSol  := {}
+    Local aDRepr := {}
+    Local cOpc := 0 
+    Local aImpress := {}
+    Local cArqDest := ""
+    Local cArqWord	:= mv_par10
+    Local cDirDot 	:= GetNewPar("MV_XX","")//Diretorio do Arquivo                                                                                                                                                                                                                       
+    Local cPathDot	:= GetNewPar("MV_YY,"")+"\"+dtos(ddatabase)+ "\"//Diretorio de gravação do arquivo gerado
+    Local cArqSaida := AllTrim( mv_par11 )
+    Local hWord	 	:= OLE_CreateLink()
+    Local nx	:= 0
+    Local cAux	:= ""
+    Local cPath 		:= GETTEMPPATH()
+    Local nAt			:= 0
+
+    If (hWord < "0")
+        Alert("WORD nao encontrado nessa maquina!!!")
+        Return
+    Endif
+
+    If Substr(cArqWord,2,1) <> ":"
+		cAux 	:= cDirDot
+		nAT		:= 1
+		For nx := 1 to len(cDirDot)
+			cAux := substr(cAux,If(nx==1,nAt,nAt+1),len(cAux))
+			nAt := at("\",cAux)
+			If nAt == 0
+				Exit
+			EndIf
+		Next nx
+		CpyS2T(cDirDot,cPath, .T.)
+		cArqWord	:= cPath+cAux
+	EndIf
+
+    IF  Upper( Subst( AllTrim( cArqWord ), - 3 ) ) != Upper( AllTrim( "DOT" ) ) .AND.;
+        Upper( Subst( AllTrim( cArqWord ), - 4 ) ) != Upper( AllTrim( "DOTM" ) )
+        MsgAlert( "Arquivo Invalido!"+CRLF+"Extensões permitidas: DOT ou DOTM" )
+        OLE_CloseLink(hWord)
+        Return
+    EndIf
+
+    // Verifica e cria, se necessario, o diretorio para gravacao do Termo
+    If !ExistDir(cArqSaida) .or. Substr(cArqSaida,2,1) <> ":"
+        if MakeDir(cPathDot) != 0
+            MsgAlert( "Não foi possível criar o diretório "+cPathDot+" ")
+            Return
+        endif
+        cArqSaida := cPathDot
+    EndIf
+    
+	// Inicializa o Ole com o MS-Word     
+	BeginMsOle()
+		IF (hWord >= "0")
+			IncProc("Processando documento...")
+			OLE_CloseLink(hWord) //fecha o Link com o Word
+
+                _cAlias := GetNextAlias()
+
+                _cQuery := "SELECT N1_FILIAL AS FILIAL_NOME, ND_FILIAL, ND_CBASE, ND_ITEM, ND_CODRESP, RD0_NOME, RD0_TIPO, N1_XFABRIC, RD0_CIC,RD0_FORNEC "  // -- TIPO 1 = Interno / 2 = Externo
+                _cQuery += "       FROM " + RetSqlName("SND") + " ND "
+                _cQuery += "       INNER JOIN " + RetSqlName("RD0") + " RD0 "
+                _cQuery += "        ON RD0_FILIAL = '" + xFilial("RD0") + "' AND RD0_CODIGO = ND_CODRESP "
+                _cQuery += "           AND RD0.D_E_L_E_T_ = ' ' "
+                _cQuery += "       INNER JOIN " + RetSqlName("SN1") + " N1 "
+                _cQuery += "        ON N1_FILIAL = ND_FILIAL AND N1_CBASE = ND_CBASE AND "
+                _cQuery += "        N1.D_E_L_E_T_ = '' AND N1_LOCAL BETWEEN '" + MV_PAR01 + "' AND '" + MV_PAR02 + "' "
+                _cQuery += "WHERE ND_FILIAL = '" + xFilial("SND") + "' "
+                _cQuery += "      AND ND_CODRESP BETWEEN '" + MV_PAR03 + "' AND '" + MV_PAR04 + "' "
+                _cQuery += "      AND ND_CBASE || ND_ITEM BETWEEN '" + MV_PAR05+MV_PAR06 + "' AND '" + MV_PAR07+MV_PAR08 + "' "
+                _cQuery += "      AND ND_STATUS = '1' AND ND.D_E_L_E_T_ = ' ' AND N1_BAIXA = '' "
+                _cQuery += "ORDER BY ND_CODRESP "
+
+                _cQuery := ChangeQuery(_cQuery)
+
+                TcQuery _cQuery New Alias (_cAlias)
+            
+                (_cAlias)->(DbGoTop())
+
+        
+            IF (_cAlias)->(Eof())
+                Aviso("Aviso","Não existem dados a serem exibidos.",{"Sair"})
+                OLE_CloseLink( hWord )//fecha o Link com o Word
+                Return
+            ENDIF
+            aDRepr := InfFunc(mv_par09)
+            IF Empty(aDRepr) 
+                MsgStop("Informação de Representante não encontrada, revise o CPF do Representante", "Atenção")
+                OLE_CloseLink(hWord)//fecha o Link com o Word 
+                U_SIATFR06()
+            EndIF
+            While (_cAlias)->(!Eof())
+                IncProc("Lendo dados...")
+                aDSol  := InfFunc((_cAlias)->RD0_CIC)  
+                _cCic := (_cAlias)->RD0_CIC              
+                _cForn := (_cAlias)->RD0_FORNEC
+                _cTipo :=  (_cAlias)->RD0_TIPO   
+                If Empty(aDSol) .AND. _cTipo == "2"
+                    If Empty(_cForn)    
+                        MsgStop("Campo fornecedor do credenciado está vazio, verificar!", "Atenção")
+                        OLE_CloseLink(hWord)//fecha o Link com o Word 
+                        U_SIATFR06()
+                    Else
+                        aDSol := InfForn((_cAlias)->RD0_FORNEC)
+                    EndIf
+                EndIf      
+                IF !Empty(aDSol)
+
+                    hWord := OLE_CreateLink()
+
+                    OLE_NewFile(hWord,cArqWord)
+                    OLE_SetProperty( hWord, oleWdVisible,   .F. )
+                    OLE_SetProperty( hWord, oleWdPrintBack, .F. )
+
+                    _cCodResp := (_cAlias)->ND_CODRESP
+                    cDoc := "TR" +dtos(ddatabase)+strtran(time(),":","")+ Alltrim(_cCodResp) + ".doc"
+                    OLE_SaveAsFile(hWord,cArqSaida+cDoc) //OLE_SaveFile(hWord)
+                    _cEntidade  := ALLTRIM(Posicione("SM0",1,cEmpAnt + (_cAlias)->ND_FILIAL,"M0_NOMECOM")) 
+                    _cCNPJ      := ALLTRIM(Posicione("SM0",1,cEmpAnt + (_cAlias)->ND_FILIAL,"M0_CGC"))
+                    _cEndEntid  := ALLTRIM(Posicione("SM0",1,cEmpAnt + (_cAlias)->ND_FILIAL,"M0_ENDENT"))
+                    
+                    /*Array aDados
+                    [1] Matricula
+                    [2] Nome
+                    [3] Nacionalidade
+                    [4] Estado Civil
+                    [5] Cargo
+                    [6] RG
+                    [7] CPF
+                    [8] Endereço completo*/
+                        
+                    _cColab     := aDSol[2]
+                    _cCEstCv    := aDSol[4]
+                    _cCCPF      := aDSol[7]
+                    _cCNacio    := aDSol[3]
+                    _cCProf     := aDSol[5]
+                    _cCRG       := aDSol[6]
+                    _cCMatr     := aDSol[1]
+                    _cCEnd      := aDSol[8]
+                    _cRepr      := aDRepr[2]
+                    _cREstCv    := aDRepr[4]
+                    _cRCPF      := aDRepr[7]
+                    _cRNacio    := aDRepr[3]
+                    _cRProf     := aDRepr[5]
+                    _cRRG       := aDRepr[6]
+                    _cRMatr     := aDRepr[1]
+                    _cREnd      := aDRepr[8]
+
+                    If (SUBSTR((Alltrim(cFilAnt)),1,2)=="01")
+                        _cCasa := "01"
+                    EndIf
+
+                    If (SUBSTR((Alltrim(cFilAnt)),1,2)=="02")
+                        _cCasa := "02"
+                    EndIf
+
+                    If (SUBSTR((Alltrim(cFilAnt)),1,2)=="03")
+                        _cCasa := "03"
+                    EndIf
+
+                    If (SUBSTR((Alltrim(cFilAnt)),1,2)=="04")
+                        _cCasa := "04"
+                    EndIf
+
+                    If (SUBSTR((Alltrim(cFilAnt)),1,2)=="05")
+                        _cCasa := "05"
+                    EndIf
+                                            
+                    If (SUBSTR((Alltrim(cFilAnt)),1,2)=="06")
+                        _cCasa := "06"
+                    EndIf
+
+                    If (SUBSTR((Alltrim(cFilAnt)),1,2)=="07")
+                        _cCasa := "06"
+                    EndIf 
+                
+
+                    While !(_cAlias)->(Eof()) .And. (_cAlias)->ND_CODRESP == _cCodResp
+                        SN1->(DbSeek(xFilial("SN1")+(_cAlias)->ND_CBASE+(_cAlias)->ND_ITEM))
+                        SNL->(DbSeek(xFilial("SNL")+(_cAlias)->(SN1->N1_LOCAL)))
+
+                        AADD(_aCod    ,(_cAlias)->ND_CBASE)
+                        AADD(_aDesc   ,SN1->N1_DESCRIC)
+                        AADD(_aMarca  ,SN1->N1_XFABRIC)
+                        AADD(_aLocal  ,SN1->N1_LOCAL+ " - " + SUBSTR(SNL->NL_DESCRIC,1,35))
+
+                        (_cAlias)->(dbSkip())
+
+                    Enddo
+                
+                
+                    nTotItens  := Len(_aCod)
+
+                    OLE_SetDocumentVar(hWord, 'TOTAL_DE_ITENS_TABELA1', Str(nTotItens))
+                    OLE_ExecuteMacro(hWord,"InserirLinhas")
+
+                    OLE_SetDocumentVar(hWord,"cEntidade" ,_cEntidade)
+                    OLE_SetDocumentVar(hWord,"cCNPJ"  	 ,_cCNPJ)
+                    OLE_SetDocumentVar(hWord,"cEndEntid" ,_cEndEntid)
+                    OLE_SetDocumentVar(hWord,"cCasa"     ,_cCasa) 
+                    OLE_SetDocumentVar(hWord,"cCodResp"  ,_cCodResp) 
+                    OLE_SetDocumentVar(hWord,"cColab"    ,_cColab)
+                    OLE_SetDocumentVar(hWord,"cCEstCv"   ,_cCEstCv)
+                    OLE_SetDocumentVar(hWord,"cCCPF"     ,_cCCPF)
+                    OLE_SetDocumentVar(hWord,"cCNacio"   ,_cCNacio)          
+                    OLE_SetDocumentVar(hWord,"cCProf"    ,_cCProf)
+                    OLE_SetDocumentVar(hWord,"cCRG"      ,_cCRG)
+                    OLE_SetDocumentVar(hWord,"cCMatr"    ,_cCMatr)
+                    OLE_SetDocumentVar(hWord,"cCEnd"     ,_cCEnd)
+                    OLE_SetDocumentVar(hWord,"cRepr"     ,_cRepr)
+                    OLE_SetDocumentVar(hWord,"cREstCv"   ,_cREstCv)
+                    OLE_SetDocumentVar(hWord,"cRCPF"     ,_cRCPF)
+                    OLE_SetDocumentVar(hWord,"cRNacio"   ,_cRNacio)          
+                    OLE_SetDocumentVar(hWord,"cRProf"    ,_cRProf)
+                    OLE_SetDocumentVar(hWord,"cRRG"      ,_cRRG)
+                    OLE_SetDocumentVar(hWord,"cRMatr"    ,_cRMatr)
+                    OLE_SetDocumentVar(hWord,"cREnd"     ,_cREnd)
+
+                    For I := 1 to nTotItens
+
+                        OLE_SetDocumentVar(hWord, "cCod"+Alltrim(Str(i))  		, Alltrim(_aCod[i]))
+                        OLE_SetDocumentVar(hWord, "cDesc"+Alltrim(Str(i))	    , Alltrim(_aDesc[i]))
+                        OLE_SetDocumentVar(hWord, "cMarca"+Alltrim(Str(i))  	, Alltrim(_aMarca[i]))
+                        OLE_SetDocumentVar(hWord, "cLocal"+Alltrim(Str(i))     	, Alltrim(_aLocal[i]))
+                    
+                    Next
+
+                    //--Atualiza Variaveis
+                    OLE_UpDateFields(hWord)
+                    OLE_SaveFile( hWord )
+                    OLE_CloseFile(hWord)
+                    Aadd(aImpress,{cArqSaida+cDoc})
+                
+                    (_cAlias)->( dbSkip() )
+                Else 
+                    While !(_cAlias)->(Eof()) .And. _cCic == (_cAlias)->RD0_CIC
+                        (_cAlias)->( dbSkip() ) 
+                    Enddo
+                EndIF 
+    
+            Enddo
+            IF !Empty(aImpress)
+                cOpc := Aviso("Imprimir", "Os Termos foram gerados na pasta "+cArqSaida+" deseja imprimir?", {"Abrir Pasta", "Imprimir","Fechar"}, 2)    
+                
+                IF cOpc==1 
+
+                    WinExec("explorer.exe "+cArqSaida)
+
+                ElseIf cOpc==2  
+                    For _nI:=1 to len(aImpress)  
+                        OLE_CloseLink(hWord)//fecha o Link com o Word 
+                        cArqDest := aImpress[_nI][1]	
+                        hWord := OLE_CreateLink()                
+                        OLE_OPENFILE(hWord,cArqDest,.T.,"","")
+                        
+                        OLE_PrintFile(hWord,"ALL",,,1)
+                        OLE_CloseFile(hWord)
+                        OLE_CloseLink(hWord)
+                    Next _nI   
+                EndIf 
+            Else
+                Aviso("Aviso","Não existem dados a serem exibidos.",{"Sair"})
+                Return            
+            EndIf    
+               
+		ENDIF
+	EndMsOle()
+    
+	OLE_CloseLink( hWord )//fecha o Link com o Word
+
+Return
+//INTEGRACAO COM SISTEMA EXTERNO
+Static function InfFunc(_cCPF)
+  Local cCPF:= _cCPF
+	Local aDados := {}
+	oConx := FWDBAccess():New(GETMV("MV_XX"),GETMV("MV_YY"),GETMV("MV_ZZ"))
+	oConx:SetConsoleError( .T. )
+	If !oConx:OpenConnection()
+		cMsg := "Falha Conexão com a base FUNC - Erro: " + AllTrim( oConx:ErrorMessage() )
+
+    FWLogMsg("INFO", /*cTransactionId*/, "01", /*cCategory*/, /*cStep*/, /*cMsgId*/,cMsg, /*nMensure*/, /*nElapseTime*/, /*aMessage*/)
+		aDados := {}
+	EndIf
+
+	cAlias := GetNextAlias()
+
+	cQuery := " SELECT MATRICULA AS MAT ,[Nome Completo] AS NOME,Nacionalidade +'(o)' AS NACI "
+    cQuery += ",[Estado Civil]+'(a)'AS CIVIL ,[Profissão(Cargo)] AS CARGO "
+    cQuery += ",CASE WHEN RG IS NULL THEN 'Não Consta' ELSE RG END AS RG ,CPF AS CPF "
+    cQuery += ",CASE WHEN End_Rua IS NULL THEN ' ' ELSE End_Rua +', ' END + "
+    cQuery += "CASE WHEN End_Num IS NULL THEN ' ' ELSE End_Num +', ' END + "
+    cQuery += "CASE WHEN End_Comp IS NULL THEN ' ' ELSE End_Comp +', ' END + "
+    cQuery += "CASE WHEN End_Bairro IS NULL THEN ' ' ELSE End_Bairro +', ' END + "
+    cQuery += "CASE WHEN End_Cidade IS NULL THEN ' ' ELSE End_Cidade +', ' END + "
+    cQuery += "CASE WHEN End_Estado IS NULL THEN ' ' ELSE End_Estado END AS ENDER "
+    cQuery += " FROM TAB_EXTERNA "
+    cQuery += " WHERE CPF = '"+cCPF+"' AND CODSITUACAO <> 'D' "
+    cQuery += " ORDER BY MATRICULA "
+
+	oConx:NewAlias( cQuery, "TVIAG1" )
+
+	If oConx:HasError()
+		cMsg := "Erro na selecao dos dados - Erro: [" + AllTrim( oConx:ErrorMessage() ) + "]"
+    FWLogMsg("INFO", /*cTransactionId*/, "01", /*cCategory*/, /*cStep*/, /*cMsgId*/,cMsg, /*nMensure*/, /*nElapseTime*/, /*aMessage*/)
+		aDados := {}
+	EndIf
+
+	IF TVIAG1->(!EOF()) 
+		aDados := {TVIAG1->MAT,TVIAG1->NOME,TVIAG1->NACI,TVIAG1->CIVIL,TVIAG1->CARGO,TVIAG1->RG,TVIAG1->CPF,TVIAG1->ENDER}
+	ENDIF
+	TVIAG1->(DBCLOSEAREA())
+return aDados
+
+
+Static function InfForn(_cForn)
+  Local cCod:= _cForn
+	Local aDados := {}
+
+	cAlias := GetNextAlias()
+
+	cQuery := " SELECT A2_COD AS COD,'Não Consta' AS MAT, A2_NOME AS NOME,'Brasileiro(a)' AS NACI "
+    cQuery += " ,'Não Consta' AS CIVIL ,'CREDENCIADO'AS CARGO "
+    cQuery += " ,'Não Consta' AS RG ,RD0_CIC AS CPF "
+    cQuery += " ,CASE WHEN TRIM(A2_END) IS NULL THEN ' ' ELSE TRIM(A2_END) +', ' END + "
+    cQuery += " CASE WHEN TRIM(A2_ENDCOMP) IS NULL THEN ' ' ELSE TRIM(A2_ENDCOMP) +', ' END + "
+    cQuery += " CASE WHEN TRIM(A2_BAIRRO) IS NULL THEN ' ' ELSE TRIM(A2_BAIRRO) +', ' END + "
+    cQuery += " CASE WHEN TRIM(A2_MUN) IS NULL THEN ' ' ELSE TRIM(A2_MUN) +', ' END + "
+    cQuery += " CASE WHEN TRIM(A2_EST) IS NULL THEN ' ' ELSE TRIM(A2_EST) END AS ENDER "
+    cQuery += " FROM " + RetSqlName("SA2") + " 
+    cQuery += " INNER JOIN  " + RetSqlName("RD0") + "  RD0 ON A2_COD = RD0_FORNEC AND RD0.D_E_L_E_T_ = '' "
+    cQuery += " WHERE A2_COD = '"+cCod+"' AND SA2010.D_E_L_E_T_ = '' "
+    cQuery += " ORDER BY COD "
+    
+    If Select("TVIAG2")>0
+        DbSelectArea("TVIAG2")
+        DbCloseArea()
+    Endif
+    
+    TCQUERY cQuery NEW ALIAS TVIAG2
+
+	IF TVIAG2->(!EOF()) 
+		aDados := {TVIAG2->MAT,TVIAG2->NOME,TVIAG2->NACI,TVIAG2->CIVIL,TVIAG2->CARGO,TVIAG2->RG,TVIAG2->CPF,TVIAG2->ENDER}
+	ENDIF
+	TVIAG2->(DBCLOSEAREA())
+return aDados
+
+Static Function AjustaSx1()
+
+
+	PutSx1( cPerg, "01","Local de  ","","","mv_ch1","C",TamSX3("NL_CODIGO")[1]	,0,0,"G","","SNL"		,"","","mv_par01","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "02","Local ate ","","","mv_ch2","C",TamSX3("NL_CODIGO")[1]	,0,0,"G","","SNL"		,"","","mv_par02","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "03","Responsavel de  ","","","mv_ch3","C",TamSX3("RD0_CODIGO")[1]	,0,0,"G","","RD0"		,"","","mv_par03","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "04","Responsavel ate ","","","mv_ch4","C",TamSX3("RD0_CODIGO")[1]	,0,0,"G","","RD0"		,"","","mv_par04","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "05","Codigo Bem de","","","mv_ch5","C",TamSX3("N1_CBASE")[1]		,0,0,"G","","SN1APT"		,"","","mv_par05","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "06","Item de","","","mv_ch6","C",TamSX3("N1_ITEM")[1]		,0,0,"G","",""		,"","","mv_par06","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "07","Codigo Bem ate","","","mv_ch7","C",TamSX3("N1_CBASE")[1]	,0,0,"G","","SN1APT"	,"","","mv_par07","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "08","Item ate       ","","","mv_ch8","C",TamSX3("N1_ITEM")[1]		,0,0,"G","",""		,"","","mv_par08","","","","","","","","","","","","","","","","",{},{},{})
+  PutSx1( cPerg, "09","Representante  ","","","mv_ch09","C",11,0,0,"G","",""		,"","","mv_par09","","","","","","","","","","","","","","","","",{},{},{})
+	PutSx1( cPerg, "10","Arquivo Modelo .dot ","","","mv_ch10","C",99,0,0,"G","DIR","","","","mv_par10","","","","","","","","","","","","","","","","",{"","",""},{"","",""},{"","",""})
+	PutSx1( cPerg, "11","Pasta Destino  ","","","mv_ch11","C",99,0,0,"G","","HSSDIR","","","mv_par11","","","","","","","","","","","","","","","","",{"","",""},{"","",""},{"","",""})
+	
+Return
